@@ -1,74 +1,165 @@
-# eCommerce Microservices Application
+# Event-Driven Commerce Platform 🚀
 
-This repository contains the implementation of an e-commerce platform built using a microservices architecture. The application leverages Spring Boot, Spring Cloud Gateway, Kafka, and Feign Clients to create a scalable and modular system for managing products, orders, inventory, and notifications.
+[![Java](https://img.shields.io/badge/Java-17-orange?style=for-the-badge&logo=java)](https://www.oracle.com/java/)
+[![Spring Boot](https://img.shields.io/badge/Spring_Boot-3.0-green?style=for-the-badge&logo=spring)](https://spring.io/projects/spring-boot)
+[![Kafka](https://img.shields.io/badge/Apache_Kafka-Event_Streaming-black?style=for-the-badge&logo=apachekafka)](https://kafka.apache.org/)
+[![Docker](https://img.shields.io/badge/Docker-Containerization-blue?style=for-the-badge&logo=docker)](https://www.docker.com/)
 
-## Features
+A scalable, distributed e-commerce backend built using **Microservices Architecture**. This project demonstrates an **Event-Driven** approach using Apache Kafka for high-throughput asynchronous processing, coupled with **Spring Cloud** patterns for resilience and service orchestration.
 
-- **Product Service**: Manages product creation and retrieval.
-- **Order Service**: Handles order placement and communicates with the Inventory Service to verify product availability.
-- **Inventory Service**: Provides real-time stock checks for products.
-- **Notification Service**: Sends email notifications upon successful order placement.
-- **API Gateway**: Routes API requests to the appropriate services and includes circuit breaker functionality.
+---
 
-## Architecture Overview
+## 🏗️ System Architecture
 
-![Architecture Overview](https://github.com/user-attachments/assets/d18205f7-d5ad-46ca-8f2d-d9a9803218b5)
+The system is composed of loosely coupled microservices that communicate via a hybrid of **Synchronous REST APIs** (for critical read/write operations) and **Asynchronous Events** (for side effects like notifications).
 
-The application consists of the following services:
-
-1. **Product Service**: Manages product information.
-2. **Order Service**: Handles order placement and interacts with the Inventory Service.
-3. **Inventory Service**: Tracks product stock and verifies availability.
-4. **Notification Service**: Listens for order events and sends email confirmations.
-5. **API Gateway**: Serves as a proxy, routing requests to the appropriate services and handling circuit breaker functionality.
-
-The services communicate through:
-
-- **Kafka**: For asynchronous messaging (e.g., order placement events).
-- **Feign Clients**: For synchronous communication between services (e.g., checking inventory).
-
-## Technologies Used
-
-- **Spring Boot**: For building the microservices.
-- **Spring Cloud Gateway**: For routing and API gateway functionality.
-- **Kafka**: For event-driven messaging.
-- **Feign Client**: For service-to-service communication.
-- **Spring Data JPA**: For data persistence.
-- **Spring Mail**: For sending email notifications.
-
-## Setup & Installation
-
-### Prerequisites
-
-- Java 17 (or later)
-- Maven
-- Docker (optional for other setups)
-
-### Clone the repository
-
-```bash
-git clone https://github.com/pavanSaai-theExplorer/eCommerce-Application.git
-cd eComeCommerce-Application
+```mermaid
+graph TD
+    Client[Client / Web App] -->|HTTP Request| Gateway[API Gateway :9000]
+    
+    subgraph "Synchronous Communication (REST/Feign)"
+        Gateway -->|Route| Product[Product Service :8080]
+        Gateway -->|Route| Order[Order Service :8081]
+        Gateway -->|Route| Inventory[Inventory Service :8082]
+        
+        Order -->|Feign Client / Sync| Inventory
+    end
+    
+    subgraph "Asynchronous Event Bus (Kafka)"
+        Order -->|Produces 'OrderPlaced' Event| Kafka{Apache Kafka}
+        Kafka -->|Consumes Event| Notif[Notification Service]
+    end
+    
+    classDef service fill:#f9f,stroke:#333,stroke-width:2px;
+    class Gateway,Product,Order,Inventory,Notif service;
 ```
 
-### Running the services
+---
 
-1. **Start the API Gateway**:
-   - The API Gateway is responsible for routing requests and applying circuit breaker functionality to the services.
-   - It forwards requests to the appropriate services based on defined routes.
-   - The API Gateway will be available at `http://localhost:9000`.
+## 💡 Key Design Decisions
 
-2. **Start the individual services**:
-   Each service can be started independently, for example:
-   - Product Service: `http://localhost:8080`
-   - Order Service: `http://localhost:8081`
-   - Inventory Service: `http://localhost:8082`
-   - Notification Service: Runs in the background as a Kafka listener.
+### 1. Event-Driven Decoupling (Kafka)
+**Problem:** In a monolithic or tightly coupled approach, placing an order blocks the user until the email service responds. If the email service is down, the order process fails.
 
-   You can run each service by starting its main application class (e.g., `ProductServiceApplication.java`, `OrderServiceApplication.java`, etc.).
+**Solution:** Implemented **Apache Kafka** to decouple the Order Service from the Notification Service.
 
-Alternatively, if you have a `docker-compose.yml` file, you can use Docker Compose to start all services at once:
+**Impact:** The checkout process is non-blocking. Notifications are processed eventually, ensuring high availability and fault tolerance.
+
+### 2. Resilience & Circuit Breaking
+**Problem:** If the Inventory Service is slow or down, the Order Service could hang while waiting, causing a cascading failure across the platform.
+
+**Solution:** Applied **Circuit Breaker patterns** (via Resilience4j/Spring Cloud Circuit Breaker) in the API Gateway and Service-to-Service calls.
+
+**Impact:** Failures are isolated. If a service is down, the system fails fast and recovers gracefully without crashing the entire backend.
+
+### 3. API Gateway Pattern
+**Role:** Acts as the single entry point for all client traffic.
+
+**Features:** Handles centralized routing, request aggregation, and cross-cutting concerns (like basic auth placeholders).
+
+---
+
+## 🛠️ Tech Stack
+
+| Category | Technology |
+| :--- | :--- |
+| **Core Framework** | Java 17, Spring Boot 3.x |
+| **Service Discovery & Routing** | Spring Cloud Gateway |
+| **Inter-Service Communication** | OpenFeign (Sync), Apache Kafka (Async) |
+| **Resilience** | Resilience4j (Circuit Breaker) |
+| **Data Persistence** | Spring Data JPA, PostgreSQL/MySQL (Configurable) |
+| **Build & Deploy** | Maven, Docker |
+
+---
+
+| Service | Port | Description | Communication Style |
+| :--- | :--- | :--- | :--- |
+| **API Gateway** | 9000 | Central entry point & routing | HTTP Proxy |
+| **Product Service** | 8080 | CRUD operations for catalog | REST API |
+| **Order Service** | 8081 | Order lifecycle management | REST + Kafka Producer |
+| **Inventory Service** | 8082 | Real-time stock management | REST API |
+| **Notification** | N/A | Listens for order events to send emails | Kafka Consumer |
+
+---
+
+# 🚀 Getting Started
+
+## Prerequisites
+* **Java 17+**
+* **Maven**
+* **Apache Kafka** (Running locally or via Docker)
+* **Optional:** Docker Desktop
+
+---
+
+## Quick Start (Local)
+
+### 1. Start Kafka (Required)
+Ensure **Zookeeper** and the **Kafka broker** are running on their default ports.
+
+### 2. Clone the Repository
+```bash
+git clone [https://github.com/pavanSaai-theExplorer/event-driven-commerce-platform.git](https://github.com/pavanSaai-theExplorer/event-driven-commerce-platform.git)
+cd event-driven-commerce-platform
+```
+
+### 3. Run the Services
+You must run the services in this order to ensure dependencies are met:
+
+* **API Gateway:** `mvn spring-boot:run` (Port 9000)
+* **Inventory & Product Services:** (Ports 8082, 8080)
+* **Order Service:** (Port 8081)
+* **Notification Service:** (Background Consumer)
+
+---
+
+## 🐳 Docker Compose (Recommended)
+If you have Docker installed, spin up the entire architecture with one command:
 
 ```bash
-docker-compose up
+docker-compose up -d --build
 ```
+This will provision Kafka, Zookeeper, and all microservices in a shared network.
+
+---
+
+## 🧪 API Endpoints (Examples)
+
+### 📦 Place an Order
+
+```bash
+POST http://localhost:9000/api/order
+Content-Type: application/json
+
+{
+  "productId": "101",
+  "quantity": 2,
+  "skuCode": "IPHONE_15_PRO"
+}
+```
+
+---
+
+## ✅ Expected Result
+
+1. **Order ID created immediately**  
+   - API responds with **HTTP 201 (Created)** upon successful order placement.
+
+2. **Inventory deducted synchronously**  
+   - Stock is validated and reduced in real time during order processing.
+
+3. **"Order Placed" log appears in Notification Service console**  
+   - Logged **asynchronously** after the order is successfully created.
+
+---
+
+## 🔮 Future Improvements
+
+- **Distributed Tracing**
+  - Implement distributed tracing using **Zipkin** and **Micrometer** to track requests across services.
+
+- **Centralized Configuration**
+  - Add a **Centralized Configuration Server** (e.g., Spring Cloud Config) for managing service configurations.
+
+- **Kubernetes Deployment**
+  - Deploy services to **Kubernetes (K8s)** using **Helm Charts** for scalable and manageable deployments.
